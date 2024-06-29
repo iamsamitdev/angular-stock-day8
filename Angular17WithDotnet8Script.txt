@@ -3533,8 +3533,7 @@ export class RegisterComponent implements OnInit {
 -------------------------------------------------------
 ✈ DAY 8
 8: Angular Auth Guard
-9: Angular Interceptor
-10: Angular CRUD Operation
+9: Angular CRUD Operation
 -------------------------------------------------------
 Step 1: แก้ไข dotnetapi ที่ไฟล์ AuthenticateController.cs ในส่วนของ Login
 ---
@@ -3850,7 +3849,345 @@ export class HeaderComponent implements OnInit {
 
 }
 
+-------------------------------------------------------
+⚡ DAY 8
+17: Angular Auth
+18: Workshop Store in Angular 17
+-------------------------------------------------------
+🚀 WORKSHOP: AngularStock with Angular 17
+
+{
+  "username": "user1",
+  "password": "User1@1234"
+}
 
 
+Step 1: ติดตั้ง ngx-cookie-service
+--
+npm i ngx-cookie-service@17.1.0
 
+Step 2: สร้าง auth.service สำหรับไว้เขียน/อ่าน/ลบ cookie และเช็คสถานะการการใช้งาน cookie
+---
+ng g s services/auth --skip-tests
+
+Step 3: สร้าง alert-dialog.component
+---
+ng g c components/alertDialog --skip-tests
+
+alert-dialog.component.ts
+---
+import { Component, Inject, inject } from '@angular/core'
+import { MatButton } from '@angular/material/button'
+import { MatIcon } from '@angular/material/icon'
+import {
+  MatDialogRef,
+  MAT_DIALOG_DATA,
+  MatDialogTitle,
+  MatDialogContent,
+  MatDialogActions,
+} from '@angular/material/dialog'
+
+@Component({
+  selector: 'app-alert-dialog',
+  templateUrl: './alert-dialog.component.html',
+  styleUrl: './alert-dialog.component.scss',
+  standalone: true,
+  imports: [
+    MatIcon,
+    MatDialogTitle,
+    MatDialogContent,
+    MatDialogActions,
+    MatButton,
+  ],
+})
+
+export class AlertDialogComponent {
+
+  @Inject(MAT_DIALOG_DATA)
+  public data = inject(MAT_DIALOG_DATA)
+  public dialogRef = inject(MatDialogRef<AlertDialogComponent>)
+
+  closeDialog(): void {
+    this.dialogRef.close(null)
+  }
+
+}
+
+alert-dialog.component.html
+---
+<div style="width: 350px">
+    @if (data.icon) {
+    <div class="flex w-full justify-center mt-6 h-12">
+        <mat-icon [style.color]="data.iconColor"
+            style="font-size: 64px; height: 64px; width: 64px;">
+            {{ data.icon }}
+        </mat-icon>
+    </div>
+    }
+    <h1 mat-dialog-title>{{ data.title }}</h1>
+    <div mat-dialog-content
+        class="mat-typography">
+        <h3 class="mat-small">{{ data.subtitle }}</h3>
+    </div>
+    <div mat-dialog-actions
+        align="center"
+        class="!mb-4">
+        <button mat-button
+            (click)="closeDialog()"
+            color="primary">ปิดหน้าต่าง</button>
+    </div>
+</div>
+
+Step 3: ใช้ dialog ในหน้า login
+---
+import { MatDialog } from '@angular/material/dialog'
+
+private dialog = inject(MatDialog)
+
+// show dialog
+            this.dialog.open(AlertDialogComponent, {
+              data: {
+                title: 'Login Success',
+                icon: 'check_circle',
+                iconColor: 'green',
+                subtitle: 'Welcome to our website.',
+              },
+              disableClose: true,
+            })
+
+Step 4:  แก้ไข header.component.ts และ html
+---
+import { Component, OnInit, Output, EventEmitter, Input, inject } from '@angular/core'
+import { MatMenuTrigger, MatMenu, MatMenuItem } from '@angular/material/menu'
+import { MatIcon } from '@angular/material/icon'
+import { MatIconButton } from '@angular/material/button'
+import { MatToolbar, MatToolbarRow } from '@angular/material/toolbar'
+
+// Import Auth Service
+import { AuthService } from '../../services/auth.service'
+
+// define the type of user data
+type UserProfile = {
+    username: string
+    email: string
+    role: string
+    token: string
+}
+
+@Component({
+    selector: 'app-header',
+    templateUrl: './header.component.html',
+    styleUrl: './header.component.scss',
+    standalone: true,
+    imports: [
+      MatToolbar, 
+      MatToolbarRow, 
+      MatIconButton, 
+      MatIcon, 
+      MatMenuTrigger, 
+      MatMenu, 
+      MatMenuItem
+    ]
+})
+export class HeaderComponent implements OnInit {
+
+  private auth = inject(AuthService)
+
+  // สร้างตัวแปรไว้เก็บข้อมูลผู้ใช้งานที่ Login
+  userProfile: UserProfile = {
+    username: '',
+    email: '',
+    role: '',
+    token: ''
+  }
+
+  @Output() sidenavToggle = new EventEmitter<void>();
+  @Input() isOpened?: boolean
+
+  pageName: string = 'Stock'
+  version = '17.3'
+
+  ngOnInit(): void {
+    // ดึงข้อมูลผู้ใช้งานที่ Login มาแสดง
+    this.userProfile = this.auth.getUser()
+    console.log(this.userProfile)
+  }
+
+  onToggleSidenav() {
+    this.sidenavToggle.emit()
+  }
+
+  onClickSignout() {
+    // ลบข้อมูลผู้ใช้งานที่ Login ออกจาก cookie
+    this.auth.logout()
+    window.location.href = '/login'
+  }
+
+}
+
+---
+<div class="flex flex-col my-2 text-end">
+            <span class="text-sm line-clamp-1">{{ userProfile.username }}</span>
+            <span class="text-sm line-clamp-1">{{ userProfile.email }}</span>
+        </div>
+
+
+Step 5:  สร้าง Guard สำหรับการเข้าถึงหน้าแบบ AuthGuard
+---
+ng g g auth/auth --skip-tests
+
+? Which type of guard would you like to create? (Press <space> to select, <a> to toggle all, <i> to invert selection, and <enter> to proceed)
+>(*) CanActivate
+ ( ) CanActivateChild
+ ( ) CanDeactivate
+ ( ) CanMatch
+
+แก้ไขไฟล์ auth.guard.ts
+---
+import { inject } from '@angular/core'
+import { CanActivateFn, Router } from '@angular/router'
+import { AuthService } from './../services/auth.service'
+
+export const authenGuard: CanActivateFn = (route, state) => {
+  const router = inject(Router)
+  const rest = inject(AuthService)
+
+  // console.log('authenGuard', rest.isLoggedIn())
+
+  if (rest.isLoggedIn()) {
+    // already logged-in
+    if (state.url == '/login' || state.url == '/register') {
+      router.navigate(['stock'])
+    }
+    return true
+  } else {
+    // not yet logged-in
+    if (state.url != '/login' && state.url != '/register') {
+      router.navigate(['login'])
+    }
+    return true
+  }
+}
+
+Step 6:  แก้ไขไฟล์ app.routes.ts เพื่อเพิ่ม AuthGuard
+---
+// Auth Guard
+import { authenGuard } from './auth/auth.guard'
+
+{
+        path: 'dashboard',
+        component: DashboardComponent,
+        canActivate: [authenGuard],
+        data: { title: 'Dashboard'}
+    },
+    {
+        path: 'stock',
+        component: StockComponent,
+        canActivate: [authenGuard],
+        data: { title: 'Stock'}
+    },
+
+Step 7:  สร้าง product.service.ts
+---
+ng g s services/product --skip-tests
+
+import { Injectable, inject } from '@angular/core'
+
+// Import HttpClient and HttpHeaders
+import { HttpClient, HttpHeaders } from '@angular/common/http'
+
+// Import Observable
+import { Observable } from 'rxjs';
+
+import { environment } from '../../environments/environment'
+
+@Injectable({
+  providedIn: 'root'
+})
+export class ProductService {
+
+  private apiURL = environment.dotnet_api_url
+  private http = inject(HttpClient)
+
+  // Read token from Local Storage
+  token = localStorage.getItem('LoggedInToken')
+
+  // Header for GET, DELETE
+  httpOptions  = {
+    headers: new HttpHeaders({
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': 'Bearer '+ this.token
+    })
+  }
+
+  // Header for POST, PUT
+  httpOptionsPost  = {
+    headers: new HttpHeaders({
+      'Authorization': 'Bearer '+ this.token
+    })
+  }
+
+  // CRUD Methods ----------------------------------------------------
+  
+    // getAllProducts(): Observable<any> {
+  //   return this.http.get<any>(
+  //     this.apiURL + 'Product', 
+  //     this.httpOptions
+  //   )
+  // }
+
+  // Get All Products by parameter (page: number, limit: number, selectedCategory: string, searchQuery: string)
+  getAllProducts(page: number, limit: number, selectedCategory: string, searchQuery: string): Observable<any> {
+    let url = this.apiURL + 'Product?page=' + page + '&limit=' + limit
+
+    if (selectedCategory) {
+      url += '&selectedCategory=' + selectedCategory
+    }
+
+    if (searchQuery) {
+      url += '&searchQuery=' + searchQuery
+    }
+
+    return this.http.get<any>(
+      url, 
+      this.httpOptions
+    )
+  }
+
+  // Get Product By ID
+  getProductById(id: number): Observable<any> {
+    return this.http.get<any>(
+      this.apiURL + 'Product/' + id, 
+      this.httpOptions
+    )
+  }
+
+  // Create Product
+  createProduct(product: any): Observable<any> {
+    return this.http.post<any>(
+      this.apiURL + 'Product', 
+      product, 
+      this.httpOptionsPost
+    )
+  }
+
+  // Update Product
+  updateProduct(id: number, product: any): Observable<any> {
+    return this.http.put<any>(
+      this.apiURL + 'Product/' + id,
+      product, 
+      this.httpOptionsPost
+    )
+  }
+
+  // Delete Product
+  deleteProduct(id: number): Observable<any> {
+    return this.http.delete<any>(
+      this.apiURL + 'Product/' + id, 
+      this.httpOptions
+    )
+  }
+
+}
 
